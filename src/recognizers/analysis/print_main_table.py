@@ -49,7 +49,7 @@ def format_score(x):
     return f'{x:.2f}'
 
 def generate_latex_table(language_file_paths):
-    model_types = ['transformerabbrev', 'rnnabbrev', 'lstmabbrev']
+    model_types = ['transformerabbrev', 'rnnabbrev', 'lstmabbrev', 'gruabbrev']
     validation_types = ['shortabbrev', 'longabbrev']
     
     all_results = {}
@@ -70,7 +70,7 @@ def generate_latex_table(language_file_paths):
     latex_table = "\\begin{tabular}{@{}lcccccc@{}}\n\\toprule\n"
     latex_table += "& \\multicolumn{3}{c}{Inductive Bias} & \\multicolumn{3}{c}{Expressivity} \\\\\n"
     latex_table += "\\cmidrule(lr){2-4} \\cmidrule(lr){5-7}\n"
-    latex_table += "Language & \\transformerabbrev{} & \\rnnabbrev{} & \\lstmabbrev{} & \\transformerabbrev{} & \\rnnabbrev{} & \\lstmabbrev{} \\\\\n"
+    latex_table += "Language & \\transformerabbrev{} & \\rnnabbrev{} & \\lstmabbrev{} & \\gruabbrev{} & \\transformerabbrev{} & \\rnnabbrev{} & \\lstmabbrev{} & \\gruabbrev \\\\\n"
     latex_table += "\\midrule\n"
 
     for language, results in all_results.items():

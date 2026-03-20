@@ -14,7 +14,7 @@ Train and evaluate a neural network on a language.
     Name of the language to run on. Corresponds to the name of a directory
     under <base-directory>/languages/.
   <architecture>
-    One of transformer, rnn, lstm.
+    One of transformer, rnn, lstm, gru.
   <loss-terms>
     Any of the following, joined by \`+\` characters:
     - rec: recognition (binary classification with binary cross-entropy loss)

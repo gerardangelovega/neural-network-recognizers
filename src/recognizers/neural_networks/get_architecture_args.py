@@ -7,7 +7,7 @@ from recognizers.neural_networks.data import load_vocabulary_data
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm'], required=True)
+    parser.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm', 'gru'], required=True)
     parser.add_argument('--parameter-budget', type=int, required=True)
     parser.add_argument('--training-data', type=pathlib.Path, required=True)
     args = parser.parse_args()
@@ -48,7 +48,7 @@ def main():
             '--num-heads', str(num_heads),
             '--feedforward-size', str(feedforward_size)
         ])
-    elif args.architecture in ('rnn', 'lstm'):
+    elif args.architecture in ('rnn', 'lstm', 'gru'):
         # RNN:
         # num_params =
         #   vocab_size * hidden_units +    # embeddings
@@ -68,6 +68,9 @@ def main():
         if args.architecture == 'rnn':
             a = 2 * num_layers
             b = vocab_size + 2 * num_layers + 1
+        elif args.architecture == 'gru':
+            a = 6 * num_layers
+            b = vocab_size + 3 * num_layers + 1
         else:
             a = 8 * num_layers
             b = vocab_size + 5 * num_layers + 1

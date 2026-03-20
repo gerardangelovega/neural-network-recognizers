@@ -65,12 +65,12 @@ def main():
     parser.add_argument('--ylabel', action='store_true', default=False)
     args = parser.parse_args()
 
-    architectures = ['transformer','lstm', 'rnn']
+    architectures = ['transformer','lstm', 'rnn', 'lstm']
     setup = 'validation-long'
     losses = ['rec', 'rec+lm', 'rec+ns', 'rec+lm+ns']
     runs = [str(i) for i in range(1, 11)]
     colors = ['blue', 'green', 'red']
-    architecture_abrev = ['Tf', 'LSTM', 'RNN']
+    architecture_abrev = ['Tf', 'LSTM', 'RNN', 'GRU']
 
     dataset = args.dataset
     if dataset == 'training':

@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 
 from rau.models.common.shared_embeddings import get_shared_embeddings
-from rau.models.rnn import LSTM, SimpleRNN
+from rau.models.rnn import LSTM, SimpleRNN, GRU
 from rau.models.transformer.positional_encodings import (
     SinusoidalPositionalEncodingCacher
 )
@@ -27,10 +27,10 @@ from .vocabulary import get_vocabularies
 class RecognitionModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
-        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm'],
+        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm', 'gru'],
             help='The type of neural network architecture to use.')
         group.add_argument('--num-layers', type=int,
-            help='(transformer, rnn, lstm) Number of layers.')
+            help='(transformer, rnn, lstm, gru) Number of layers.')
         group.add_argument('--d-model', type=int,
             help='(transformer) The size of the vector representations used '
                  'in the transformer.')
@@ -44,11 +44,11 @@ class RecognitionModelInterface(ModelInterface):
             help='(transformer) The dropout rate used throughout the '
                  'transformer on input embeddings, sublayer function outputs, '
                  'feedforward hidden layers, and attention weights. '
-                 '(rnn, lstm) The dropout rate used between all layers, '
+                 '(rnn, lstm, gru) The dropout rate used between all layers, '
                  'including between the input embedding layer and the first '
                  'layer, and between the last layer and the output layer.')
         group.add_argument('--hidden-units', type=int,
-            help='(rnn, lstm) Number of hidden units to use in the hidden '
+            help='(rnn, lstm, gru) Number of hidden units to use in the hidden '
                  'state.')
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
@@ -139,7 +139,7 @@ class RecognitionModelInterface(ModelInterface):
                 ).main()
             )
             output_size = d_model
-        elif architecture in ('rnn', 'lstm'):
+        elif architecture in ('rnn', 'lstm', 'gru'):
             if hidden_units is None:
                 raise ValueError
             if num_layers is None:
@@ -156,6 +156,14 @@ class RecognitionModelInterface(ModelInterface):
             # Construct the recurrent hidden state module.
             if architecture == 'rnn':
                 core = SimpleRNN(
+                    input_size=hidden_units,
+                    hidden_units=hidden_units,
+                    layers=num_layers,
+                    dropout=dropout,
+                    learned_hidden_state=True
+                )
+            elif architecture == 'gru':
+                core = GRU(
                     input_size=hidden_units,
                     hidden_units=hidden_units,
                     layers=num_layers,
