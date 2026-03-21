@@ -1,3 +1,5 @@
+set -euo pipefail
+
 BASE_DIR=${1-}
 DEVICE=${2-}
 
