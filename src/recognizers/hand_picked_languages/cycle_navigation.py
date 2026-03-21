@@ -8,7 +8,7 @@ from recognizers.automata.finite_automaton import (
 )
 from .rayuela_util import from_rayuela_fsa
 
-def cycle_navigation() -> FSA:
+def cycle_navigation_rayuela_fsa() -> FSA:
     A = FSA(R=Real)
 
     Q = [State(i) for i in range(5)]
