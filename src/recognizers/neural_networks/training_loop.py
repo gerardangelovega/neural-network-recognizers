@@ -25,12 +25,17 @@ def add_training_loop_arguments(parser):
     )
     group.add_argument('--language-modeling-loss-coefficient', type=float, default=1.0)
     group.add_argument('--next-symbols-loss-coefficient', type=float, default=1.0)
+    group.add_argument('--binary-reg-loss-coefficient', type=float, default=0.0,
+        help='(synced_difflogic) Weight for the binary-activation regularization '
+             'loss mean(sigmoid(emb)*(1-sigmoid(emb))). Set >0 to encourage the '
+             'embedding layer to produce near-binary activations.')
 
 def get_training_loop_kwargs(parser, args):
     result = common_get_training_loop_kwargs(parser, args)
     for name in [
         'language_modeling_loss_coefficient',
-        'next_symbols_loss_coefficient'
+        'next_symbols_loss_coefficient',
+        'binary_reg_loss_coefficient'
     ]:
         result[name] = getattr(args, name)
     return result
@@ -50,6 +55,7 @@ class RecognitionTrainingLoop(TrainingLoop[
 
     language_modeling_loss_coefficient: float
     next_symbols_loss_coefficient: float
+    binary_reg_loss_coefficient: float
 
     def get_validation_metric_name(self):
         return 'recognition_cross_entropy'
@@ -122,6 +128,8 @@ class RecognitionTrainingLoop(TrainingLoop[
             loss_terms['language_modeling_cross_entropy'] += (self.language_modeling_loss_coefficient,)
         if 'next_symbols_cross_entropy' in loss_terms:
             loss_terms['next_symbols_cross_entropy'] += (self.next_symbols_loss_coefficient,)
+        if 'binary_reg' in loss_terms:
+            loss_terms['binary_reg'] += (self.binary_reg_loss_coefficient,)
         return loss_terms
 
     def evaluate_batch(self, model, model_interface, prepared_batch):
@@ -195,6 +203,12 @@ def get_loss_terms(
         recognition_loss,
         num_examples_denominator
     )
+    # Binary activation regularization (synced_difflogic only).
+    # The inner DiffLogic model caches mean(sigmoid(emb)*(1-sigmoid(emb))) on
+    # _last_binary_reg_loss after each forward pass.  When the coefficient is 0
+    # (the default) this term is present but will be multiplied out by get_loss().
+    if hasattr(model, '_last_binary_reg_loss'):
+        result['binary_reg'] = (model._last_binary_reg_loss, num_examples_denominator)
     if include_accuracy:
         # The model accepts iff the logit is >= 0 (the probability is >= 0.5).
         recognition_predictions = recognition_logits >= 0.0

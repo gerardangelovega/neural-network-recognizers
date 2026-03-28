@@ -1044,8 +1044,8 @@ torch = "^2.1.0"
 [package.source]
 type = "git"
 url = "https://github.com/gerardangelovega/rau.git"
-reference = "research"
-resolved_reference = "c2a4536bd87c55ad3da9fa0cef3b5380ad8a0986"
+reference = "difflogic"
+resolved_reference = "6c6dd29179ef3f055e45dfdbf3ee7f54941c74e2"
 
 [[package]]
 name = "scipy"
@@ -1197,4 +1197,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "16b02cbf05bbd238d8bb5f3fe2d8a3a2d757246b01763420b8161e104ec9a11b"
+content-hash = "c62d94e60f9a14ccef8acc0e79b4445d57a3a1dabb590260056b71ed94a0356f"

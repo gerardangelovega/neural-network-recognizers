@@ -34,3 +34,14 @@ python recognizers/neural_networks/evaluate.py \
   --datasets "${datasets[@]}" \
   --output "$eval_dir" \
   "${extra_args[@]}"
+
+eval_discrete_dir=$model_dir/eval_discrete
+mkdir -p "$eval_discrete_dir"
+python recognizers/neural_networks/evaluate.py \
+  --training-data "$language_dir" \
+  --batching-max-tokens 1024 \
+  --load-model "$model_dir" \
+  --datasets "${datasets[@]}" \
+  --output "$eval_discrete_dir" \
+  --eval-mode discrete \
+  "${extra_args[@]}"

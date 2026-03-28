@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 
 from rau.models.common.shared_embeddings import get_shared_embeddings
-from rau.models.rnn import LSTM, SimpleRNN, GRU
+from rau.models.rnn import LSTM, SimpleRNN, GRU, SyncedDiffLogicRecognizer
 from rau.models.transformer.positional_encodings import (
     SinusoidalPositionalEncodingCacher
 )
@@ -27,10 +27,13 @@ from .vocabulary import get_vocabularies
 class RecognitionModelInterface(ModelInterface):
 
     def add_more_init_arguments(self, group):
-        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm', 'gru'],
+        group.add_argument('--architecture', choices=['transformer', 'rnn', 'lstm', 'gru', 'synced_difflogic'],
             help='The type of neural network architecture to use.')
         group.add_argument('--num-layers', type=int,
             help='(transformer, rnn, lstm, gru) Number of layers.')
+        group.add_argument('--embedding-dim', type=int,
+            help='(synced_difflogic) The size of token embedding vectors. '
+                 'Must satisfy embedding_dim <= 2 * hidden_units.')
         group.add_argument('--d-model', type=int,
             help='(transformer) The size of the vector representations used '
                  'in the transformer.')
@@ -53,6 +56,10 @@ class RecognitionModelInterface(ModelInterface):
         group.add_argument('--init-scale', type=float,
             help='The scale used for the uniform distribution from which '
                  'certain parameters are initialized.')
+        group.add_argument('--group-factor', type=int, default=2,
+            help='(synced_difflogic) Number of neurons GroupSum aggregates per '
+                 'output feature. Must be >= 1. Default 2 gives each feature a '
+                 'meaningful 2-neuron majority vote; 1 makes GroupSum an identity.')
         group.add_argument('--use-language-modeling-head', action='store_true', default=False,
             help='Add a language modeling head to the model that will be used '
                  'to add a language modeling objective to the loss function.')
@@ -62,6 +69,7 @@ class RecognitionModelInterface(ModelInterface):
 
     def get_kwargs(self, args, vocabulary_data):
         uses_bos = args.architecture == 'transformer'
+        embedding_dim = getattr(args, 'embedding_dim', None)
         uses_output_vocab = args.use_language_modeling_head or args.use_next_symbols_head
         input_vocab, output_vocab = get_vocabularies(
             vocabulary_data,
@@ -76,6 +84,8 @@ class RecognitionModelInterface(ModelInterface):
             feedforward_size=args.feedforward_size,
             dropout=args.dropout,
             hidden_units=args.hidden_units,
+            embedding_dim=embedding_dim,
+            group_factor=getattr(args, 'group_factor', 2),
             use_language_modeling_head=args.use_language_modeling_head,
             use_next_symbols_head=args.use_next_symbols_head,
             input_vocabulary_size=len(input_vocab),
@@ -92,6 +102,8 @@ class RecognitionModelInterface(ModelInterface):
         feedforward_size,
         dropout,
         hidden_units,
+        embedding_dim,
+        group_factor,
         use_language_modeling_head,
         use_next_symbols_head,
         input_vocabulary_size,
@@ -191,6 +203,26 @@ class RecognitionModelInterface(ModelInterface):
                 DropoutUnidirectional(dropout)
             )
             output_size = hidden_units
+        elif architecture == 'synced_difflogic':
+            if hidden_units is None:
+                raise ValueError('--hidden-units is required for synced_difflogic')
+            if num_layers is None:
+                raise ValueError('--num-layers is required for synced_difflogic')
+            if dropout is None:
+                raise ValueError('--dropout is required for synced_difflogic')
+            if embedding_dim is None:
+                raise ValueError('--embedding-dim is required for synced_difflogic')
+            return SyncedDiffLogicRecognizer(
+                num_input_tokens=input_vocabulary_size,
+                embedding_dim=embedding_dim,
+                hidden_units=hidden_units,
+                num_layers=num_layers,
+                dropout=dropout,
+                group_factor=group_factor,
+                use_language_modeling_head=use_language_modeling_head,
+                use_next_symbols_head=use_next_symbols_head,
+                output_vocabulary_size=output_vocabulary_size,
+            )
         else:
             raise ValueError
         # Finally, add the output heads used for training.
@@ -210,11 +242,20 @@ class RecognitionModelInterface(ModelInterface):
     def initialize(self, args, model, generator):
         if args.init_scale is None:
             raise ValueError
-        smart_init(model, generator, fallback=uniform_fallback(args.init_scale))
+        if args.architecture == 'synced_difflogic':
+            # The DiffLogic inner model initializes its own layers in its
+            # constructor (noisy_residual etc.).  Only initialize the linear
+            # task heads here to avoid overwriting those carefully set weights.
+            for head in [model.recognition_head, model.lm_head, model.next_symbols_head]:
+                if head is not None:
+                    smart_init(head, generator, fallback=uniform_fallback(args.init_scale))
+        else:
+            smart_init(model, generator, fallback=uniform_fallback(args.init_scale))
 
     def on_saver_constructed(self, args, saver):
         # See comments in prepare_batch().
         # bos_index will be None if the model doesn't use BOS.
+        self.architecture = saver.kwargs['architecture']
         self.bos_index = saver.kwargs['bos_index']
         self.uses_bos = self.bos_index is not None
         # eos_index and output_padding_index will be None if the model doesn't
@@ -364,6 +405,15 @@ class RecognitionModelInterface(ModelInterface):
                 module.set_allow_reallocation(False)
 
     def get_logits(self, model, model_input):
+        # SyncedDiffLogicRecognizer is a plain nn.Module (not a Composed),
+        # so it cannot use the tag_kwargs routing mechanism.  Call it directly
+        # with the needed keyword arguments instead.
+        if self.architecture == 'synced_difflogic':
+            return model(
+                model_input.input_sequence,
+                last_index=model_input.last_index,
+                positive_mask=model_input.positive_mask
+            )
         # Note that for the transformer, it is unnecessary to pass a padding
         # mask, because padding only occurs at the end of a sequence, and the
         # model is already causally masked.
